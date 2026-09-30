@@ -1,7 +1,6 @@
 """Operación pública para emitir facturas a partir de una venta.
 
 La implementación es deliberadamente ligera para mantener la emisión dentro
-
 de un flujo síncrono simple y predecible.
 """
 
@@ -23,7 +22,7 @@ def _validar_venta(venta: Dict[str, Any]) -> None:
     if not venta.get("id_venta"):
         raise VentaInvalida("La venta debe incluir 'id_venta'.")
 
-    if "total" not in venta:
+    if "total" not in venta or venta.get("total") is None:
         raise VentaInvalida("La venta debe incluir 'total'.")
 
     if venta.get("cliente") is not None and not isinstance(venta.get("cliente"), dict):
