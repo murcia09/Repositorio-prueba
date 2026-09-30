@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, List
 
 
 class VentaInvalida(ValueError):
@@ -54,19 +54,19 @@ def _conectividad_disponible(verificador_conectividad) -> bool:
 
 def _enviar_al_servicio(servicio_tributario, venta: Dict[str, Any]) -> Dict[str, Any]:
     if servicio_tributario is None:
-        return {"estado": "enviada", "id_venta": venta["id_venta"]}
+        return {"estado": "emitida", "id_venta": venta["id_venta"]}
 
     if hasattr(servicio_tributario, "enviar"):
         resultado = servicio_tributario.enviar(venta)
         if isinstance(resultado, dict):
             return resultado
-        return {"estado": "enviada", "id_venta": venta["id_venta"], "respuesta": resultado}
+        return {"estado": "emitida", "id_venta": venta["id_venta"], "respuesta": resultado}
 
     if callable(servicio_tributario):
         resultado = servicio_tributario(venta)
         if isinstance(resultado, dict):
             return resultado
-        return {"estado": "enviada", "id_venta": venta["id_venta"], "respuesta": resultado}
+        return {"estado": "emitida", "id_venta": venta["id_venta"], "respuesta": resultado}
 
     raise SincronizacionInvalida("El servicio tributario no expone una interfaz válida.")
 
@@ -107,6 +107,7 @@ def emitir(venta: dict, *, verificador_conectividad=None, servicio_tributario=No
     if not _conectividad_disponible(verificador_conectividad):
         _guardar_en_cola(cola, deepcopy(venta))
         factura["estado"] = "contingencia"
+        factura["emitida"] = False
         factura["pendiente_sincronizacion"] = True
         return factura
 
@@ -115,13 +116,14 @@ def emitir(venta: dict, *, verificador_conectividad=None, servicio_tributario=No
     except Exception:
         _guardar_en_cola(cola, deepcopy(venta))
         factura["estado"] = "contingencia"
+        factura["emitida"] = False
         factura["pendiente_sincronizacion"] = True
         return factura
 
     factura.update(resultado_servicio)
     factura.setdefault("id_venta", venta["id_venta"])
     factura["emitida"] = True
-    factura["estado"] = resultado_servicio.get("estado", "emitida")
+    factura["estado"] = "emitida"
     factura["pendiente_sincronizacion"] = False
     return factura
 
