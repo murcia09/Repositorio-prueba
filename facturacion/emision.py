@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, List
 from uuid import uuid4
 
 
@@ -67,8 +67,14 @@ def _registrar_en_cola(cola_pendientes: Any, item: Dict[str, Any]) -> None:
     raise TypeError("La cola de pendientes debe exponer registrar() o append().")
 
 
-def _es_falso(valor: Any) -> bool:
-    return bool(valor is False)
+def _resolver_llamable(colaborador: Any, nombre: str, metodo: str) -> Any:
+    if colaborador is None:
+        return None
+    if hasattr(colaborador, metodo):
+        return getattr(colaborador, metodo)
+    if callable(colaborador):
+        return colaborador
+    raise TypeError(f"{nombre} debe ser callable o exponer {metodo}().")
 
 
 def emitir(
@@ -86,14 +92,12 @@ def emitir(
 
     _validar_venta(venta)
 
+    verificador = _resolver_llamable(verificador_conexion, "verificador_conexion", "hay_conexion")
+    procesador = _resolver_llamable(procesador_tributario, "procesador_tributario", "procesar")
+
     hay_conexion = True
-    if verificador_conexion is not None:
-        if hasattr(verificador_conexion, "hay_conexion"):
-            hay_conexion = bool(verificador_conexion.hay_conexion())
-        elif callable(verificador_conexion):
-            hay_conexion = bool(verificador_conexion())
-        else:
-            raise TypeError("verificador_conexion debe ser callable o exponer hay_conexion().")
+    if verificador is not None:
+        hay_conexion = bool(verificador())
 
     factura = _construir_factura_base(venta)
 
@@ -104,20 +108,13 @@ def emitir(
         return factura
 
     try:
-        if procesador_tributario is not None:
-            if hasattr(procesador_tributario, "procesar"):
-                resultado = procesador_tributario.procesar(venta)
-            elif callable(procesador_tributario):
-                resultado = procesador_tributario(venta)
-            else:
-                raise TypeError("procesador_tributario debe ser callable o exponer procesar().")
-
+        if procesador is not None:
+            resultado = procesador(venta)
             if isinstance(resultado, dict):
                 factura.update(resultado)
                 factura.setdefault("estado", "emitida")
             else:
                 factura["resultado_tributario"] = resultado
-
         return factura
     except Exception:
         factura["estado"] = "contingencia"
@@ -128,6 +125,9 @@ def emitir(
 
 def sincronizar_pendientes(cola_pendientes, *, sincronizador) -> Dict[str, Any]:
     """Sincroniza una colección de facturas pendientes una por una."""
+
+    if not (hasattr(sincronizador, "sincronizar") or callable(sincronizador)):
+        raise TypeError("sincronizador debe ser callable o exponer sincronizar().")
 
     if cola_pendientes is None:
         pendientes: List[Dict[str, Any]] = []
@@ -145,10 +145,8 @@ def sincronizar_pendientes(cola_pendientes, *, sincronizador) -> Dict[str, Any]:
         try:
             if hasattr(sincronizador, "sincronizar"):
                 sincronizador.sincronizar(factura)
-            elif callable(sincronizador):
-                sincronizador(factura)
             else:
-                raise TypeError("sincronizador debe ser callable o exponer sincronizar().")
+                sincronizador(factura)
             sincronizadas += 1
         except Exception as exc:
             errores.append({"factura_id": factura.get("factura_id"), "error": str(exc)})
