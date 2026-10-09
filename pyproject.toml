@@ -1,0 +1,8 @@
+[project]
+name = "facturacion-punto-de-venta"
+version = "0.1.0"
+description = "Facturacion electronica para un punto de venta (proyecto de practica)"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
